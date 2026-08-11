@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Day 3 英语口语测试 · 2026-08-12</title>
+<style>
+body{font-family:system-ui,-apple-system,"Segoe UI","PingFang SC",sans-serif;max-width:850px;margin:0 auto;padding:24px;background:#f6f7fb;color:#1f2937}h1{margin-bottom:8px}.tip,.card,.q{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:16px;margin:12px 0}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}.word{font-size:22px;font-weight:800}.muted{color:#6b7280}.choices{display:grid;gap:8px;margin-top:10px}button{padding:9px 12px;border:1px solid #d1d5db;border-radius:10px;background:#fff;cursor:pointer;text-align:left}button:hover{background:#f3f4f6}.good{background:#f0fdf4!important;border-color:#86efac!important}.bad{background:#fef2f2!important;border-color:#fecaca!important}.score{position:sticky;bottom:10px;background:#111827;color:#fff;padding:12px 16px;border-radius:12px;margin-top:20px}.answer{display:none;margin-top:8px}</style>
+</head>
+<body>
+<h1>Day 3 · 口语主动回忆测试</h1>
+<p class="tip"><b>规则：</b>目标不是拼写。看到中文或场景后，尽量在 <b>2 秒</b>内想起英文并说出口。超过 2 秒，就算“不熟”。</p>
+
+<h2>1. 今日 10 词</h2>
+<div id="cards" class="grid"></div>
+
+<h2>2. 场景选择题</h2>
+<div id="quiz"></div>
+
+<h2>3. 口语回忆</h2>
+<p class="muted">先说答案，再点“看答案”。能在 2 秒内说出来，再点“我熟练”。</p>
+<div id="recall"></div>
+
+<div class="score">选择题：<span id="mc">0</span>/10　口语熟练：<span id="rc">0</span>/10</div>
+
+<script>
+const words=[
+['realize','v. 意识到；明白','realize that...','I realized that I was overthinking it.'],
+['assume','v. 以为；假设','assume that...','I assumed he was busy.'],
+['handle','v. 处理；应对','handle a problem / pressure','I can handle it.'],
+['hesitate','v. 犹豫','hesitate to do sth','Don\'t hesitate to ask me.'],
+['afford','v. 负担得起','afford sth / afford to do','I can\'t afford to travel every month.'],
+['mention','v. 提到','mention that...','She mentioned that she might move.'],
+['awkward','adj. 尴尬的；不自在的','feel awkward / awkward silence','There was an awkward silence.'],
+['reliable','adj. 可靠的','a reliable person / service','She\'s very reliable.'],
+['option','n. 选择；选项','another option','We have two options.'],
+['perspective','n. 观点；视角','from my perspective','From my perspective, the problem is communication.']
+];
+const cards=document.getElementById('cards');
+words.forEach(w=>{const d=document.createElement('div');d.className='card';d.innerHTML=`<div class="word">${w[0]}</div><div>${w[1]}</div><div class="muted">搭配：${w[2]}</div><div>${w[3]}</div><button onclick="speak('${w[0]}')">🔊 听单词</button>`;cards.appendChild(d)});
+function speak(t){if(!speechSynthesis)return;const u=new SpeechSynthesisUtterance(t);u.lang='en-US';u.rate=.85;speechSynthesis.cancel();speechSynthesis.speak(u)}
+const qs=[
+['我本来以为他不想来。 I ___ he didn\'t want to come.','assume',['assume','mention','afford','handle']],
+['我刚意识到我忘了钥匙。 I just ___ I forgot my keys.','realize',['realize','hesitate','handle','mention']],
+['这个问题我来处理。 I\'ll ___ this problem.','handle',['handle','afford','assume','option']],
+['别犹豫，直接问。 Don\'t ___ to ask.','hesitate',['hesitate','realize','mention','assume']],
+['我负担不起这么贵的公寓。 I can\'t ___ this apartment.','afford',['afford','handle','mention','realize']],
+['她提到她可能搬家。 She ___ that she might move.','mention',['mention','assume','handle','hesitate']],
+['聊天突然冷场，很尴尬。 It was ___.','awkward',['awkward','reliable','perspective','option']],
+['我需要一个靠谱的修理店。 I need a ___ repair shop.','reliable',['reliable','awkward','option','afford']],
+['我们还有另一个选择。 We have another ___.','option',['option','perspective','mention','handle']],
+['从我的角度看…… From my ___...','perspective',['perspective','option','awkward','reliable']]
+];
+let mc=0;const qbox=document.getElementById('quiz');
+qs.forEach((q,i)=>{const d=document.createElement('div');d.className='q';d.innerHTML=`<b>${i+1}. ${q[0]}</b><div class="choices"></div><div class="muted fb"></div>`;const c=d.querySelector('.choices');q[2].forEach(o=>{const b=document.createElement('button');b.textContent=o;b.onclick=()=>{if(d.dataset.done)return;d.dataset.done=1;if(o===q[1]){b.classList.add('good');mc++;d.querySelector('.fb').textContent='✅ 对'}else{b.classList.add('bad');d.querySelector('.fb').textContent='❌ 正确答案：'+q[1];[...c.children].find(x=>x.textContent===q[1]).classList.add('good')}document.getElementById('mc').textContent=mc};c.appendChild(b)});qbox.appendChild(d)});
+const recalls=[
+['意识到：我想太多了。','realize — I realized that I was overthinking it.'],
+['以为朋友很忙，所以没打电话。','assume — I assumed my friend was busy.'],
+['这个问题我能处理。','handle — I can handle this problem.'],
+['有问题尽管问，别犹豫。','hesitate — Don\'t hesitate to ask.'],
+['我现在负担不起每个月旅行。','afford — I can\'t afford to travel every month.'],
+['她提到她可能搬家。','mention — She mentioned that she might move.'],
+['聊天突然冷场，很尴尬。','awkward — It was an awkward silence.'],
+['她是一个很靠谱的人。','reliable — She\'s very reliable.'],
+['我们还有两个选择。','option — We have two options.'],
+['从我的角度看……','perspective — From my perspective...']
+];
+let rc=0;const rbox=document.getElementById('recall');
+recalls.forEach((r,i)=>{const d=document.createElement('div');d.className='q';d.innerHTML=`<b>${i+1}. ${r[0]}</b><div class="answer">${r[1]}</div><div class="choices"><button class="show">看答案</button><button class="ok">我熟练</button></div>`;d.querySelector('.show').onclick=()=>{const a=d.querySelector('.answer');a.style.display=a.style.display==='block'?'none':'block'};d.querySelector('.ok').onclick=e=>{if(d.dataset.ok)return;d.dataset.ok=1;rc++;e.target.textContent='✅ 已计分';e.target.disabled=true;document.getElementById('rc').textContent=rc};rbox.appendChild(d)});
+</script>
+</body>
+</html>
