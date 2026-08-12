@@ -17,8 +17,12 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Make word buttons speak only the word
+        run: python -c "from pathlib import Path; p=Path('index.html'); s=p.read_text(); old=\"c.querySelector('.speak').onclick=()=>speak(w[0]+'. '+w[2]);\"; new=\"c.querySelector('.speak').onclick=()=>speak(w[0]);\"; assert old in s; p.write_text(s.replace(old,new,1))"
+
+      - name: Commit change
         run: |
-          python - <<'PY'
-          from pathlib import Path
-          p = Path('index.html')
-          s = p
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "make word audio speak only the word"
+          git push origin main
