@@ -52,6 +52,11 @@ english-deep-talk-plan/
 - [Day 3 · 2026-08-12](daily/2026-08-12.md)
 - [Day 3 网页测试](quiz/2026-08-12.html)
 - [不熟词复习表](review/weak-words.md)
+## 🎤 开始今天的英语训练
+
+### 👉 [点击这里直接开始训练](https://succuvivi.github.io/english-deep-talk-plan/)
+
+> 目标：看到中文或真实场景后，2 秒内说出英文。
 
 ---
 
