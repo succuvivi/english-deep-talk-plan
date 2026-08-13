@@ -1,1 +1,29 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>English Deep Talk</title></head><body><p>English training page</p></body></html>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#3157d5">
+<title>English Deep Talk · 30 天口语训练</title>
+<link rel="stylesheet" href="style-v2.css">
+</head>
+<body><div class="wrap">
+<header class="hero"><p class="eyebrow">English Deep Talk Plan</p><h1>30 天 · 把高频词练到 2 秒内能说出来</h1><p class="lead">每天 10 个高频词：先用词性、记忆拆解和双语例句理解，再做词义识别、易混词辨析、搭配强化、2 秒主动回忆、间隔复习和全英完形。</p><div class="stats"><div class="stat"><small>计划完成</small><b id="completed">0 / 30</b></div><div class="stat"><small>已开始词汇</small><b id="practiced">0</b></div><div class="stat"><small>弱词</small><b id="weakN">0</b></div><div class="stat"><small>本页到期复习</small><b id="dueN">0</b></div></div><div class="progress"><i id="bar"></i></div></header>
+<nav class="days" id="days"></nav>
+<div class="layout"><main class="main">
+<section class="panel dayhead"><div class="row"><div><div class="meta" id="meta"></div><h2 id="theme"></h2><p class="sub" id="sub"></p></div><span class="badge" id="status">未开始</span></div><div class="actions"><button class="btn primary" id="start">开始今天训练</button><button class="btn" id="today">跳到今天</button><button class="btn" id="topDone">标记完成</button></div><p class="hint" id="startHint"></p></section>
+<section class="panel"><div class="title"><div><h2>1. 今日 10 词</h2><p>词性 + 中文 + 记忆法 + 高频搭配 + 双语例句；🔊 只读单词。</p></div></div><div class="words" id="words"></div></section>
+<section class="panel"><div class="title"><div><h2>2. 看英文选中文</h2><p>快速确认词义，不给额外提示。</p></div><span class="score" id="meaningScore">0 / 10</span></div><div class="list" id="meaningQuiz"></div></section>
+<section class="panel"><div class="title"><div><h2>3. 场景选择题</h2><p>看中文，从相似、易混淆的英文中选正确词。</p></div><span class="score" id="quizScore">0 / 10</span></div><div class="list" id="quiz"></div></section>
+<section class="panel"><div class="title"><div><h2>4. 搭配强化</h2><p>两个短回合，把单词和高频搭配配成一组。</p></div><span class="score" id="matchScore">0 / 10</span></div><div class="list" id="matchQuiz"></div></section>
+<section class="panel"><div class="title"><div><h2>5. 2 秒主动回忆</h2><p>先说出口，再看答案；超过 2 秒就进弱词池。</p></div><span class="score" id="recallScore">0 / 10</span></div><div class="list" id="recall"></div></section>
+<section class="panel"><div class="title"><div><h2>6. 到期复习</h2><p>1H / 1D / 2D / 6D 自动混入旧词；答题前不显示搭配答案。</p></div><span class="score" id="reviewScore">0 / 0</span></div><div class="list" id="reviews"></div></section>
+<section class="panel"><div class="title"><div><h2>7. 全英选词完形</h2><p>使用不同于词卡的新英文句子，只给英文选项。</p></div><span class="score" id="sentenceScore">0 / 0</span></div><div class="list" id="sentenceQuiz"></div></section>
+</main><aside class="side"><section class="panel complete"><h3>今天完成标准</h3><p>完成词义识别、场景辨析和搭配强化；至少 8 个词 2 秒内想起；完成到期复习与全英完形。</p><button class="btn" id="done">标记今天完成</button></section><section class="panel"><h3>弱词复习池</h3><p class="hint">连续 3 次复习都熟练，会自动移出。</p><div class="weaklist" id="weak"></div></section><section class="panel"><h3>复习节奏</h3><ul class="info"><li>Start：学当天 10 词</li><li>1H：一小时后快速回忆</li><li>1D：昨天中文 → 英文</li><li>2D：两天前混合复习</li><li>6D：六天前再次激活</li></ul><button class="btn small" id="reset">重置本机记录</button></section></aside></div>
+<footer>进度和弱词只保存在当前浏览器 localStorage，不会上传个人学习记录。</footer></div><div class="toast" id="toast"></div>
+<script src="plan.js"></script>
+<script src="lexicon-v2.js"></script>
+<script src="app-core-v2.js"></script>
+<script src="app-practice-v2.js"></script>
+<script src="app-review-v2.js"></script>
+</body></html>
