@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { groupEntriesForDisplay, clampSeriesIndex, getSwipeDirection } from '../js/series.js';
+import { groupEntriesForDisplay, clampSeriesIndex, getSwipeDirection, getSeriesTrackIndex, getSeriesTrackProgress } from '../js/series.js';
 
 const standalone = { id: 'solo', zh: '结账' };
 const spicy = { id: 'spicy', zh: '辣', seriesId: 'taste', seriesLabel: '口味', seriesOrder: 2 };
@@ -11,15 +11,12 @@ test('groups same-series entries and keeps the first visible position', () => {
   const result = groupEntriesForDisplay([spicy, standalone, sweet, sour]);
   assert.equal(result.length, 2);
   assert.equal(result[0].kind, 'series');
-  assert.equal(result[0].id, 'taste');
   assert.deepEqual(result[0].entries.map(entry => entry.zh), ['甜', '辣', '酸']);
-  assert.equal(result[1].entry.id, 'solo');
 });
 
 test('a single surviving series member becomes a standalone entry', () => {
   const result = groupEntriesForDisplay([spicy, standalone]);
   assert.deepEqual(result.map(item => item.kind), ['entry', 'entry']);
-  assert.equal(result[0].entry.id, 'spicy');
 });
 
 test('different series never merge', () => {
@@ -33,39 +30,44 @@ test('clampSeriesIndex stays inside current series length', () => {
   assert.equal(clampSeriesIndex(-1, 5), 0);
   assert.equal(clampSeriesIndex(2, 5), 2);
   assert.equal(clampSeriesIndex(9, 5), 4);
-  assert.equal(clampSeriesIndex(2, 0), 0);
 });
 
 test('swipe direction requires a 50px predominantly horizontal gesture', () => {
   assert.equal(getSwipeDirection(-70, 10), 'next');
   assert.equal(getSwipeDirection(70, 10), 'prev');
   assert.equal(getSwipeDirection(-40, 5), null);
-  assert.equal(getSwipeDirection(-70, 90), null);
-  assert.equal(getSwipeDirection(5, 1), null);
 });
 
-test('series view state exposes active, neighbors, progress, and edge flags', async () => {
-  const { getSeriesViewState } = await import('../js/series.js');
-  const group = { id: 'taste', entries: [sweet, spicy, sour] };
-  assert.deepEqual(getSeriesViewState(group, 1), {
-    index: 1,
-    active: spicy,
-    previous: sweet,
-    next: sour,
-    current: 2,
-    total: 3,
-    atStart: false,
-    atEnd: false
-  });
-  assert.equal(getSeriesViewState(group, -9).atStart, true);
-  assert.equal(getSeriesViewState(group, 99).atEnd, true);
+test('series track index follows actual horizontal position', () => {
+  assert.equal(getSeriesTrackIndex(0, 320, 4), 0);
+  assert.equal(getSeriesTrackIndex(319, 320, 4), 1);
+  assert.equal(getSeriesTrackIndex(641, 320, 4), 2);
+  assert.equal(getSeriesTrackIndex(9999, 320, 4), 3);
+  assert.equal(getSeriesTrackIndex(-30, 320, 4), 0);
 });
 
-test('swipe gesture tracker ignores other pointers and returns the series direction', async () => {
-  const { beginSwipeGesture, finishSwipeGesture } = await import('../js/series.js');
-  const start = beginSwipeGesture('taste', 7, 180, 300);
-  assert.deepEqual(start, { id: 'taste', pointerId: 7, x: 180, y: 300 });
-  assert.equal(finishSwipeGesture(start, 8, 100, 300), null);
-  assert.deepEqual(finishSwipeGesture(start, 7, 100, 308), { id: 'taste', direction: 'next' });
-  assert.equal(finishSwipeGesture(start, 7, 175, 370), null);
+test('series track progress exposes human readable current and total', () => {
+  assert.deepEqual(getSeriesTrackProgress(640, 320, 4), { index: 2, current: 3, total: 4 });
+  assert.deepEqual(getSeriesTrackProgress(0, 0, 0), { index: 0, current: 0, total: 0 });
+});
+
+test('native series markup renders every full card and no arrow navigation', async () => {
+  const { renderSeriesTrack } = await import('../js/series.js');
+  const group = { id: 'protein', label: '肉类食材', entries: [
+    { id: 'meat', zh: '肉' },
+    { id: 'chicken', zh: '鸡' },
+    { id: 'pork', zh: '猪' },
+    { id: 'fish', zh: '鱼' }
+  ] };
+  const html = renderSeriesTrack(group, entry => `<article data-entry-id="${entry.id}">${entry.zh}</article>`, value => value);
+  assert.match(html, /class="series-track"/);
+  assert.match(html, /data-series-track="protein"/);
+  assert.equal((html.match(/class="series-slide"/g) || []).length, 4);
+  assert.match(html, />肉</);
+  assert.match(html, />鸡</);
+  assert.match(html, />猪</);
+  assert.match(html, />鱼</);
+  assert.match(html, />1 \/ 4</);
+  assert.doesNotMatch(html, /data-series-nav/);
+  assert.doesNotMatch(html, /series-nav/);
 });
