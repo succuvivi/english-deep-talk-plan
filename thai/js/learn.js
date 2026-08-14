@@ -3,7 +3,7 @@ import { SCENES } from '../data/scenes.js';
 import { parseLearnQuery, filterEntries, escapeHtml } from './core.js';
 import { learnerState } from './state.js';
 import { audioEngine } from './audio.js';
-import { groupEntriesForDisplay, clampSeriesIndex, getSeriesViewState, beginSwipeGesture, finishSwipeGesture } from './series.js';
+import { groupEntriesForDisplay, getSeriesTrackProgress, renderSeriesTrack } from './series.js';
 
 const results = document.querySelector('#results');
 const emptyState = document.querySelector('#empty-state');
@@ -15,9 +15,8 @@ const toast = document.querySelector('#toast');
 const initial = parseLearnQuery(window.location.search);
 let queryState = { ...initial };
 let toastTimer = null;
-const seriesIndexes = new Map();
 let displayItems = [];
-let swipeStart = null;
+const seriesScrollState = new WeakMap();
 
 function getScene(id) {
   return SCENES.find(scene => scene.id === id) || null;
@@ -37,6 +36,7 @@ function setTitle() {
 }
 
 function phraseHtml(item, entryId, kind, index) {
+  const humanAudio = Boolean(item.audio);
   return `
     <div class="phrase-item">
       <div class="phrase-main">
@@ -45,13 +45,17 @@ function phraseHtml(item, entryId, kind, index) {
         <div class="roman">${escapeHtml(item.roman)}</div>
         ${item.zhPron ? `<div class="zh-pron">近似音：${escapeHtml(item.zhPron)}</div>` : ''}
       </div>
-      <button type="button" class="play-btn compact" data-play-entry="${escapeHtml(entryId)}" data-play-kind="${kind}" data-play-index="${index}" aria-label="播放 ${escapeHtml(item.zh)}">🔊</button>
+      <div class="phrase-audio">
+        <button type="button" class="play-btn compact" data-play-entry="${escapeHtml(entryId)}" data-play-kind="${kind}" data-play-index="${index}" aria-label="播放 ${escapeHtml(item.zh)}">🔊</button>
+        <span class="audio-source-tag">${humanAudio ? '真人录音' : '设备语音'}</span>
+      </div>
     </div>
   `;
 }
 
 function entryHtml(entry) {
   const favorite = learnerState.isFavorite(entry.id);
+  const humanAudio = Boolean(entry.audio);
   return `
     <article class="vocab-card" data-entry-id="${escapeHtml(entry.id)}">
       <div class="vocab-head">
@@ -65,7 +69,8 @@ function entryHtml(entry) {
         <button type="button" class="favorite-btn" data-favorite="${escapeHtml(entry.id)}" aria-label="${favorite ? '取消收藏' : '收藏'} ${escapeHtml(entry.zh)}">${favorite ? '★' : '☆'}</button>
       </div>
       <div class="play-row">
-        <button type="button" class="play-btn primary" data-play-entry="${escapeHtml(entry.id)}" data-play-kind="entry" data-play-index="0">🔊 听单词</button>
+        <button type="button" class="play-btn primary" data-play-entry="${escapeHtml(entry.id)}" data-play-kind="entry" data-play-index="0">${humanAudio ? '🔊 听真人泰语' : '🔊 听泰语'}</button>
+        <span class="audio-source-tag">${humanAudio ? '真人录音' : '设备语音'}</span>
       </div>
       <details>
         <summary>常用搭配 <span>${entry.collocations.length}</span></summary>
@@ -79,35 +84,8 @@ function entryHtml(entry) {
   `;
 }
 
-function activeSeriesIndex(group) {
-  return clampSeriesIndex(seriesIndexes.get(group.id) ?? 0, group.entries.length);
-}
-
 function seriesHtml(group) {
-  const state = getSeriesViewState(group, activeSeriesIndex(group));
-  seriesIndexes.set(group.id, state.index);
-
-  const previousLabel = state.previous ? `上一个：${state.previous.zh}` : '已经是第一个';
-  const nextLabel = state.next ? `下一个：${state.next.zh}` : '已经是最后一个';
-
-  return `
-    <section class="series-shell" data-series-id="${escapeHtml(group.id)}">
-      <div class="series-toolbar">
-        <div>
-          <strong class="series-label">${escapeHtml(group.label)}</strong>
-          <span class="series-hint">左右滑动整张词卡</span>
-        </div>
-        <div class="series-controls" aria-label="同系列词切换">
-          <button type="button" class="series-nav" data-series-nav="prev" ${state.atStart ? 'disabled' : ''} aria-label="${escapeHtml(previousLabel)}">‹</button>
-          <span class="series-progress" aria-label="第 ${state.current} 个，共 ${state.total} 个">${state.current} / ${state.total}</span>
-          <button type="button" class="series-nav" data-series-nav="next" ${state.atEnd ? 'disabled' : ''} aria-label="${escapeHtml(nextLabel)}">›</button>
-        </div>
-      </div>
-      <div class="series-swipe-surface" data-series-swipe="${escapeHtml(group.id)}">
-        ${entryHtml(state.active)}
-      </div>
-    </section>
-  `;
+  return renderSeriesTrack(group, entryHtml, escapeHtml);
 }
 
 function displayItemHtml(item) {
@@ -128,12 +106,6 @@ function render() {
   searchInput.value = queryState.q;
   const entries = filteredEntries();
   displayItems = groupEntriesForDisplay(entries);
-
-  const validSeries = new Set(displayItems.filter(item => item.kind === 'series').map(item => item.id));
-  for (const id of seriesIndexes.keys()) {
-    if (!validSeries.has(id)) seriesIndexes.delete(id);
-  }
-
   results.innerHTML = displayItems.map(displayItemHtml).join('');
   emptyState.hidden = entries.length > 0;
 }
@@ -164,49 +136,42 @@ function playableItem(entry, kind, index) {
   return null;
 }
 
-function currentSeriesGroup(id) {
-  return displayItems.find(item => item.kind === 'series' && item.id === id) || null;
-}
-
-function replaceSeriesShell(group, focusDirection = null) {
-  const oldShell = [...results.querySelectorAll('[data-series-id]')]
-    .find(element => element.dataset.seriesId === group.id);
-  if (!oldShell) return;
-
-  const template = document.createElement('template');
-  template.innerHTML = seriesHtml(group).trim();
-  const freshShell = template.content.firstElementChild;
-  oldShell.replaceWith(freshShell);
-
-  if (focusDirection) {
-    const sameButton = freshShell.querySelector(`[data-series-nav="${focusDirection}"]:not(:disabled)`);
-    const fallbackDirection = focusDirection === 'next' ? 'prev' : 'next';
-    (sameButton || freshShell.querySelector(`[data-series-nav="${fallbackDirection}"]:not(:disabled)`))?.focus();
+function settleSeriesTrack(track) {
+  if (!track) return;
+  const slideCount = track.querySelectorAll('.series-slide').length;
+  const { current, total } = getSeriesTrackProgress(track.scrollLeft, track.clientWidth, slideCount);
+  const progress = track.closest('[data-series-id]')?.querySelector('.series-progress');
+  if (progress) {
+    progress.textContent = `${current} / ${total}`;
+    progress.setAttribute('aria-label', `第 ${current} 个，共 ${total} 个`);
   }
+  const state = seriesScrollState.get(track) || {};
+  clearTimeout(state.timer);
+  seriesScrollState.set(track, {
+    ...state,
+    timer: null,
+    lastSettled: track.scrollLeft,
+    audioStopped: false
+  });
 }
 
-function moveSeries(id, direction, focusDirection = null) {
-  const group = currentSeriesGroup(id);
-  if (!group) return;
-
-  const current = activeSeriesIndex(group);
-  const delta = direction === 'next' ? 1 : -1;
-  const next = clampSeriesIndex(current + delta, group.entries.length);
-  if (next === current) return;
-
-  audioEngine.stop();
-  seriesIndexes.set(id, next);
-  replaceSeriesShell(group, focusDirection);
+function handleSeriesScroll(track) {
+  const existing = seriesScrollState.get(track) || {
+    lastSettled: 0,
+    audioStopped: false,
+    timer: null
+  };
+  const moved = Math.abs(track.scrollLeft - existing.lastSettled);
+  if (moved >= 12 && !existing.audioStopped) {
+    audioEngine.stop();
+    existing.audioStopped = true;
+  }
+  clearTimeout(existing.timer);
+  existing.timer = setTimeout(() => settleSeriesTrack(track), 120);
+  seriesScrollState.set(track, existing);
 }
 
 results.addEventListener('click', async event => {
-  const navButton = event.target.closest('[data-series-nav]');
-  if (navButton) {
-    const shell = navButton.closest('[data-series-id]');
-    if (shell) moveSeries(shell.dataset.seriesId, navButton.dataset.seriesNav, navButton.dataset.seriesNav);
-    return;
-  }
-
   const favoriteButton = event.target.closest('[data-favorite]');
   if (favoriteButton) {
     learnerState.toggleFavorite(favoriteButton.dataset.favorite);
@@ -223,51 +188,31 @@ results.addEventListener('click', async event => {
 
   playButton.disabled = true;
   try {
-    await audioEngine.play(item, learnerState.getSpeechRate());
-  } catch (error) {
-    if (String(error?.message).includes('NO_THAI_VOICE')) {
-      showToast('当前设备没有可用的泰语语音。可以换 Chrome / Safari 或在系统里安装泰语语音。');
-    } else {
-      showToast('播放失败，请再试一次。');
+    const hadHumanAudio = Boolean(item.audio);
+    const result = await audioEngine.play(item, learnerState.getSpeechRate());
+    if (hadHumanAudio && result.mode === 'tts') {
+      showToast('真人录音播放失败，正在使用设备泰语语音');
     }
+  } catch {
+    showToast('播放失败，请再试一次。');
   } finally {
     playButton.disabled = false;
   }
 });
 
-results.addEventListener('pointerdown', event => {
-  const surface = event.target.closest('[data-series-swipe]');
-  if (!surface) return;
-  if (event.target.closest('button, a, input, summary')) return;
+results.addEventListener('scroll', event => {
+  const track = event.target.closest?.('[data-series-track]');
+  if (track) handleSeriesScroll(track);
+}, true);
 
-  swipeStart = beginSwipeGesture(
-    surface.dataset.seriesSwipe,
-    event.pointerId,
-    event.clientX,
-    event.clientY
-  );
-});
-
-results.addEventListener('pointerup', event => {
-  const result = finishSwipeGesture(
-    swipeStart,
-    event.pointerId,
-    event.clientX,
-    event.clientY,
-    50
-  );
-  swipeStart = null;
-  if (result) moveSeries(result.id, result.direction);
-});
-
-results.addEventListener('pointercancel', event => {
-  if (swipeStart?.pointerId === event.pointerId) swipeStart = null;
-});
+results.addEventListener('scrollend', event => {
+  const track = event.target.closest?.('[data-series-track]');
+  if (track) settleSeriesTrack(track);
+}, true);
 
 searchForm.addEventListener('submit', event => {
   event.preventDefault();
   queryState.q = searchInput.value.trim();
-  seriesIndexes.clear();
   render();
 });
 
