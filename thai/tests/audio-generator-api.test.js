@@ -22,3 +22,14 @@ test('category page candidate refs combine exact filename and exact Thai descrip
     { title: 'File:Th-cha.ogg', target: 'ชา', source: 'Wikimedia Commons / exact Thai description' }
   ]);
 });
+
+test('audio curl args cap retries and per-file runtime so one recording cannot stall the import', async () => {
+  const { buildAudioCurlArgs } = await import('../../tools/import_thai_audio_generator.mjs');
+  const args = buildAudioCurlArgs('https://upload.wikimedia.org/test.ogg', '/tmp/test.ogg');
+  const retryIndex = args.indexOf('--retry');
+  const maxTimeIndex = args.indexOf('--max-time');
+  assert.equal(args[retryIndex + 1], '1');
+  assert.equal(args[maxTimeIndex + 1], '25');
+  assert.ok(args.includes('https://upload.wikimedia.org/test.ogg'));
+  assert.equal(args.at(-1), '/tmp/test.ogg');
+});

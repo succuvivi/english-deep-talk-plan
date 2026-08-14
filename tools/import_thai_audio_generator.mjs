@@ -3,27 +3,8 @@ import {
   extractDirectThaiFilename,
   descriptionTargetRefs
 } from './import_thai_audio.mjs';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
-import { pathToFileURL, fileURLToPath } from 'node:url';
-import {
-  parseWiktionaryAudioMap,
-  isSupportedAudioFile,
-  isAllowedAudioLicense,
-  chooseBestCandidate,
-  buildAudioAssignments,
-  canonicalizeMediaUrl
-} from './import_thai_audio.mjs';
-import { createPacedFetch } from './run_thai_audio_import.mjs';
 
 const COMMONS_API = 'https://commons.wikimedia.org/w/api.php';
-const execFileAsync = promisify(execFile);
-const WIKTIONARY_API = 'https://th.wiktionary.org/w/api.php';
-const WIKTIONARY_AUDIO_MODULE = 'มอดูล:th-pron/files';
-const LINGUA_LIBRE_CATEGORY = 'Category:Lingua Libre pronunciation-tha';
-const THAI_PRONUNCIATION_CATEGORY = 'Category:Thai pronunciation';
 
 export function buildCategoryGeneratorUrl(category, continuation = null) {
   const url = new URL(COMMONS_API);
@@ -59,6 +40,27 @@ export function candidateRefsFromCategoryPage(page, wantedThai, { linguaLibre = 
   for (const ref of refs) unique.set(`${ref.target}\u0000${ref.source}`, ref);
   return [...unique.values()];
 }
+
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { pathToFileURL, fileURLToPath } from 'node:url';
+import {
+  parseWiktionaryAudioMap,
+  isSupportedAudioFile,
+  isAllowedAudioLicense,
+  chooseBestCandidate,
+  buildAudioAssignments,
+  canonicalizeMediaUrl
+} from './import_thai_audio.mjs';
+import { createPacedFetch } from './run_thai_audio_import.mjs';
+
+const execFileAsync = promisify(execFile);
+const WIKTIONARY_API = 'https://th.wiktionary.org/w/api.php';
+const WIKTIONARY_AUDIO_MODULE = 'มอดูล:th-pron/files';
+const LINGUA_LIBRE_CATEGORY = 'Category:Lingua Libre pronunciation-tha';
+const THAI_PRONUNCIATION_CATEGORY = 'Category:Thai pronunciation';
 
 function stripHtml(value) {
   return String(value || '')
@@ -185,17 +187,23 @@ async function fetchWiktionaryCandidates(fetchImpl, wantedThai) {
   return output;
 }
 
-async function downloadWithCurl(url, destination) {
-  await fs.mkdir(path.dirname(destination), { recursive: true });
-  await execFileAsync('curl', [
+export function buildAudioCurlArgs(url, destination) {
+  return [
     '-fL',
-    '--retry', '3',
+    '--connect-timeout', '10',
+    '--max-time', '25',
+    '--retry', '1',
     '--retry-all-errors',
     '--retry-delay', '2',
     '-A', 'ThaiLifeSpeakAudioImporter/1.0 (GitHub: succuvivi/english-deep-talk-plan)',
     canonicalizeMediaUrl(url),
     '-o', destination
-  ], { maxBuffer: 1024 * 1024 });
+  ];
+}
+
+async function downloadWithCurl(url, destination) {
+  await fs.mkdir(path.dirname(destination), { recursive: true });
+  await execFileAsync('curl', buildAudioCurlArgs(url, destination), { maxBuffer: 1024 * 1024 });
   const size = (await fs.stat(destination)).size;
   if (size <= 0) throw new Error(`Empty audio file: ${url}`);
   return size;
