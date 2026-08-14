@@ -11,14 +11,17 @@ export function createAudioEngine({ speechSynthesis, SpeechSynthesisUtterance, A
   }
 
   function playTts(item, speed) {
-    const voices = speechSynthesis?.getVoices?.() || [];
-    const voice = voices.find(v => /^th(-|$)/i.test(v.lang || ''));
-    if (!voice) throw new Error('NO_THAI_VOICE');
+    if (!speechSynthesis?.speak || !SpeechSynthesisUtterance) {
+      throw new Error('TTS_UNAVAILABLE');
+    }
+
+    const voices = speechSynthesis.getVoices?.() || [];
+    const voice = voices.find(v => /^th(-|$)/i.test(v.lang || '')) || null;
 
     return new Promise((resolve, reject) => {
       const utterance = new SpeechSynthesisUtterance(item.th);
       utterance.lang = 'th-TH';
-      utterance.voice = voice;
+      if (voice) utterance.voice = voice;
       utterance.rate = speed === 'slow' ? 0.65 : 0.9;
       utterance.onend = () => resolve({ mode: 'tts' });
       utterance.onerror = () => reject(new Error('TTS_FAILED'));
