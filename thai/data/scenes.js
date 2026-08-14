@@ -1,0 +1,20 @@
+export const SCENES = [
+  { id: 'restaurant', title: '餐厅 / 路边摊', emoji: '🍜', description: '点菜、口味、加减配料、结账', keywords: ['点餐', '吃饭', '口味'] },
+  { id: 'coffee', title: '咖啡 / 奶茶', emoji: '☕', description: '甜度、冰量、杯型、外带', keywords: ['咖啡', '奶茶', '饮料'] },
+  { id: 'convenience', title: '便利店 / 超市', emoji: '🛒', description: '找商品、数量、袋子、付款', keywords: ['711', '超市', '购物'] },
+  { id: 'market', title: '市场 / 水果摊', emoji: '🥭', description: '水果、称重、挑选、砍价', keywords: ['市场', '水果', '价格'] },
+  { id: 'taxi', title: 'Taxi / Bolt / Grab', emoji: '🚕', description: '上车、目的地、路线、停车', keywords: ['打车', 'grab', 'bolt'] },
+  { id: 'motorbike', title: '摩托车 / 停车', emoji: '🛵', description: '摩托、头盔、停车、修车', keywords: ['摩托', '停车'] },
+  { id: 'directions', title: '问路 / 找地方', emoji: '🗺️', description: '左右、前后、附近、楼层', keywords: ['问路', '方向'] },
+  { id: 'petrol', title: '加油站', emoji: '⛽', description: '油号、加满、金额、胎压', keywords: ['加油', '汽油'] },
+  { id: 'delivery', title: '快递 / 外卖', emoji: '📦', description: '送到、放门口、打电话、取件', keywords: ['快递', '外卖', '送货'] },
+  { id: 'condo', title: '公寓 / 物业 / 租房', emoji: '🏠', description: '房间、合同、物业、设施', keywords: ['公寓', '物业', '租房'] },
+  { id: 'repairs', title: '维修 / 水电 / 空调', emoji: '🔧', description: '坏了、漏水、停电、预约维修', keywords: ['维修', '空调', '水电'] },
+  { id: 'laundry', title: '洗衣店', emoji: '🧺', description: '洗、烘、熨、取衣时间', keywords: ['洗衣', '烘干'] },
+  { id: 'massage', title: '按摩 / 美容', emoji: '💆', description: '力度、部位、时间、预约', keywords: ['按摩', '美容'] },
+  { id: 'hospital', title: '医院 / 药店', emoji: '🏥', description: '症状、疼痛、过敏、买药', keywords: ['医院', '药店', '生病'] },
+  { id: 'bank', title: '银行 / 付款', emoji: '🏦', description: '转账、现金、扫码、零钱', keywords: ['银行', '付款', '转账'] },
+  { id: 'mobile', title: '手机 / 网络 / 电话', emoji: '📱', description: '套餐、网速、信号、打电话', keywords: ['手机', '网络', '电话'] },
+  { id: 'greetings', title: '日常寒暄', emoji: '👋', description: '见面、感谢、道歉、简单回应', keywords: ['你好', '谢谢', '寒暄'] },
+  { id: 'friends', title: '朋友聊天 / 社交', emoji: '👭', description: '约时间、感受、计划、聊天', keywords: ['朋友', '聊天', '社交'] }
+];
