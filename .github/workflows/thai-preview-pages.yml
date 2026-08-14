@@ -1,0 +1,58 @@
+name: Deploy Thai Feature Preview
+
+on:
+  push:
+    branches:
+      - feat/thai-native-swipe-official-audio
+    paths:
+      - .github/workflows/thai-preview-pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout production snapshot
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          path: site
+
+      - name: Checkout Thai feature branch
+        uses: actions/checkout@v6
+        with:
+          ref: feat/thai-native-swipe-official-audio
+          path: feature
+
+      - name: Add isolated Thai preview without replacing production Thai
+        run: |
+          rm -rf site/preview-thai
+          mkdir -p site/preview-thai
+          cp -a feature/thai/. site/preview-thai/
+          rm -rf site/.git
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Upload production plus preview
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
