@@ -59,8 +59,17 @@ test('broken recorded audio falls back to Thai TTS', async () => {
   assert.equal(synth.spoken[0].text, 'เผ็ด');
 });
 
-test('missing Thai voice throws a stable error', async () => {
+test('missing speech synthesis throws a stable unavailable error', async () => {
+  const engine = createAudioEngine({ speechSynthesis: null, SpeechSynthesisUtterance: FakeUtterance, AudioCtor: null });
+  await assert.rejects(() => engine.play({ th: 'เผ็ด', audio: null }, 'normal'), /TTS_UNAVAILABLE/);
+});
+
+test('missing listed Thai voice still uses lang-based browser TTS fallback', async () => {
   const synth = fakeSynth([{ name: 'English', lang: 'en-US' }]);
   const engine = createAudioEngine({ speechSynthesis: synth, SpeechSynthesisUtterance: FakeUtterance, AudioCtor: null });
-  await assert.rejects(() => engine.play({ th: 'เผ็ด', audio: null }, 'normal'), /NO_THAI_VOICE/);
+  const result = await engine.play({ th: 'เผ็ด', audio: null }, 'normal');
+  assert.equal(result.mode, 'tts');
+  assert.equal(synth.spoken.length, 1);
+  assert.equal(synth.spoken[0].lang, 'th-TH');
+  assert.equal(synth.spoken[0].voice, null);
 });
