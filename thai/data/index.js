@@ -17,6 +17,7 @@ import { mobileEntries } from './mobile.js';
 import { greetingsEntries } from './greetings.js';
 import { friendsEntries } from './friends.js';
 import { applySeriesMetadata } from './series.js';
+import { applyAudioMetadata } from './audio-map.js';
 
 const BASE_ENTRIES = [
   ...restaurantEntries,
@@ -39,4 +40,4 @@ const BASE_ENTRIES = [
   ...friendsEntries,
 ];
 
-export const ENTRIES = applySeriesMetadata(BASE_ENTRIES);
+export const ENTRIES = applyAudioMetadata(applySeriesMetadata(BASE_ENTRIES));
