@@ -1,4 +1,4 @@
-# Thai Native Swipe + Official Thai Audio Design
+# Thai Native Swipe + Local Human Pronunciation Design
 
 Date: 2026-08-14
 Status: approved conversational design, pending written-spec review
@@ -8,7 +8,7 @@ Status: approved conversational design, pending written-spec review
 Improve the Thai daily-life learning site in two ways:
 
 1. Replace button-driven series navigation with a true touch-first horizontal card track: the full word card is already visible before any gesture, and the learner drags the card itself left/right to reveal neighboring words.
-2. Make NECTEC / AI for Thai official Thai Text-to-Speech the primary pronunciation source, with browser TTS retained only as a clearly labeled fallback.
+2. Replace browser TTS as the normal word-pronunciation source with locally hosted Thai native-speaker recordings downloaded only from sources whose licenses explicitly allow redistribution.
 
 The change must preserve the existing 18 scenes, 360 entries, semantic-family taxonomy, search, favorites, Thai show/hide, collocations, examples, and mobile-first layout.
 
@@ -32,7 +32,7 @@ Example:
 │ ไก่                          │
 │ kài                          │
 │ 中文近似音 ...               │
-│ 🔊 官方泰语发音              │
+│ 🔊 听真人泰语                │
 │ 常用搭配 ▾                   │
 │ 例句 ▾                       │
 └──────────────────────────────┘
@@ -55,8 +55,7 @@ While dragging, the neighboring full card physically follows the gesture, simila
 - Do not auto-advance.
 - Do not loop from the last card to the first.
 - Do not show multiple full cards side-by-side on a normal phone viewport.
-- The next card may have a very subtle edge/peek only if it does not reduce the active card's readable width; default is no peek.
-- Keyboard users can tab through controls inside cards. No arrow-button replacement is required in v1; native horizontal scrolling remains available, and optional keyboard Left/Right support may be added only when the series container itself is focused.
+- No visible navigation arrows are retained as a fallback.
 
 ### Rendering architecture
 
@@ -67,7 +66,7 @@ The grouping pipeline remains unchanged:
 3. A series with at least 2 visible members renders as one horizontal track.
 4. A series with only 1 visible member renders as a normal standalone card.
 
-Instead of rendering only the active member, `seriesHtml(group)` renders **every visible member** in the group:
+Instead of rendering only the active member, `seriesHtml(group)` renders every visible member in the group:
 
 ```text
 series-shell
@@ -91,234 +90,263 @@ Recommended CSS mechanics:
 - `scroll-snap-type: x mandatory`
 - one slide = `flex: 0 0 100%`
 - slide = `scroll-snap-align: start`
-- hide decorative scrollbar where supported, but keep the track natively scrollable
+- hide decorative scrollbar where supported, while keeping native scrolling
 - `overscroll-behavior-x: contain`
 - do not use `touch-action: pan-y` on the full track because native horizontal scrolling itself must remain available
 
-JavaScript observes the track's settled position and updates progress (`current / total`). Prefer `scrollend` when available and a small debounced `scroll` fallback for browsers without `scrollend`.
+JavaScript observes the settled track position and updates progress (`current / total`). Prefer `scrollend` when available and a small debounced `scroll` fallback otherwise.
 
 ### Expanded content behavior
 
-A card remains fully interactive while it is the active slide.
-
 - Collocations/examples can be expanded before or after swiping.
 - Swiping away does not destroy the card DOM.
-- Expanded state may remain open when the learner swipes back during the same page session.
-- This is intentionally different from the previous implementation, which rebuilt the card and collapsed details on every move.
+- Expanded state remains open if the learner swipes away and back during the same render.
+- Favorites and audio controls remain clickable inside every slide.
 
 ### Audio during swipe
 
-When a series starts moving away from the current slide, stop any currently playing audio so the learner never hears audio from an off-screen card.
+When meaningful horizontal navigation begins, stop currently playing audio so the learner never hears a previous card after moving away from it.
 
-The implementation should avoid cancelling audio on tiny accidental horizontal movement. Stop audio only when a meaningful series scroll/navigation begins.
+Do not stop audio on tiny accidental horizontal movement.
 
 ### Progress calculation
 
-The progress text is derived from the track's actual scroll position, not a separate active-index state that can drift out of sync.
-
-At a settled position:
+Progress is derived from actual scroll position rather than separate active-index state:
 
 ```text
 index = round(scrollLeft / slideWidth)
 progress = `${index + 1} / ${slideCount}`
 ```
 
-Clamp to `[0, slideCount - 1]` and account for small fractional browser layout differences.
+Clamp to `[0, slideCount - 1]` and tolerate small fractional layout differences.
 
 ---
 
-## Part B — Official Thai pronunciation
+## Part B — Locally hosted human Thai pronunciation
 
-### Primary provider
+### Core decision
 
-Primary pronunciation source: **NECTEC / AI for Thai official Thai Text-to-Speech**.
+There is **no API key, no NECTEC proxy, and no server-side speech service** in this design.
 
-Research basis verified on 2026-08-14:
+For the 360 main vocabulary entries, the preferred audio is a downloaded Thai native-speaker pronunciation file stored inside the repository and served directly by GitHub Pages.
 
-- NECTEC identifies VAJA as its Thai speech-synthesis / Thai TTS technology and states it has been researched and developed continuously since 1997.
-- AI for Thai currently lists Text to Speech in its Conversation services and identifies `Vaja9` on the Text-to-Speech service page.
-- AI for Thai currently lists Text to Speech as a Premium Conversation service.
-- The AI for Thai developer trial flow requires registration and an API Key; the public site currently states a test allowance of about 10 calls/day.
+The primary source pool is:
 
-Because GitHub Pages is a public static site, **the AI for Thai API key must never be embedded in repository JavaScript, HTML, query parameters, or client-side localStorage**.
+- Wikimedia Commons Thai pronunciation files
+- Lingua Libre Thai pronunciation recordings hosted on Wikimedia Commons
+- additional sources only when the exact file page clearly permits redistribution under an accepted open license
 
-### Audio request architecture
+The implementation must not bulk-download or rehost audio from sources that prohibit systematic extraction or redistribution.
 
-Use a small server-side/serverless audio proxy:
+### Accepted licenses
 
-```text
-GitHub Pages
-   |
-   | POST { text: "เผ็ด" }
-   v
-Official-audio proxy
-   |
-   | authenticated provider request
-   | (API key stored as server secret)
-   v
-NECTEC / AI for Thai TTS
-   |
-   v
-Thai audio bytes
-```
+To keep the public GitHub repository legally simple, import only files whose source page clearly identifies one of these licenses:
 
-The browser sends only native Thai text. Romanization and Chinese approximation are never sent to the speech provider.
+- CC0
+- Public Domain
+- CC BY
+- CC BY-SA
 
-### Provider adapter boundary
+Do not import files marked non-commercial, no-derivatives, unknown, custom-restricted, or otherwise ambiguous.
 
-The website should not hard-code provider-specific request fields throughout the UI. Keep the client interface simple:
+For CC BY / CC BY-SA files, retain required attribution and license information in the repository manifest and user-facing attribution page.
 
-```js
-officialAudioEngine.play({ th: 'เผ็ด' }, { speed: 'normal' })
-```
+### Scope of human recordings
 
-The proxy/provider adapter owns:
+Phase 1 targets the **360 main vocabulary words**.
 
-- API endpoint
-- API key/header format
-- voice/model selection
-- provider request body
-- returned audio format conversion if needed
-- quota/rate-limit handling
-- caching
+For each entry:
 
-This lets Vaja9/provider details evolve without touching every vocabulary card.
+1. Search by the exact Thai spelling (`entry.th`).
+2. Prefer an exact isolated-word pronunciation recorded by a Thai speaker.
+3. Prefer clean recordings with little background noise and no extra commentary.
+4. If several valid recordings exist, prefer the clearest neutral/standard pronunciation.
+5. Download the selected file into the repository.
+6. Attach the local file path to that vocabulary entry.
 
-### Cache strategy
+Do not synthesize a word from romanization and do not use English phonetic text as the audio source.
 
-Official TTS calls should be cached because the site contains many repeated Thai strings across entries, collocations, and examples.
+### Phrases and examples
 
-Cache key:
+Human recordings are required first for the 360 main vocabulary words only.
 
-```text
-sha256(normalized Thai text + provider voice/model version)
-```
+For collocations and example sentences:
 
-Do **not** include playback speed in the provider cache key. Generate/copy one normal official pronunciation and use client audio `playbackRate` for the slow mode, so slow playback does not consume a second provider request.
+- if an exact openly licensed human recording is found, it may be imported and used;
+- otherwise continue to use device Thai TTS as a fallback;
+- the UI must identify this fallback as `设备泰语语音` rather than implying it is a human recording.
 
-Recommended cache behavior:
+This keeps the project practical: the highest-value single-word pronunciation becomes native-speaker audio without requiring thousands of sentence recordings.
 
-1. Client asks proxy for Thai text.
-2. Proxy checks cache by normalized Thai text.
-3. Cache hit: return stored official audio immediately.
-4. Cache miss: request NECTEC/AI for Thai, store result, return it.
-5. Subsequent plays reuse the official cached audio.
-
-The proxy may use its platform cache/KV/object storage, but the exact hosting vendor is an implementation choice. No vendor-specific client dependency is allowed.
-
-### Normalization
-
-Before hashing/sending text:
-
-- trim leading/trailing whitespace
-- collapse accidental repeated spaces
-- preserve Thai spelling, punctuation, and polite particles
-- do not transliterate
-- do not strip tone-bearing Thai characters
-- do not rewrite content into English phonetics
-
-### Playback modes
-
-Normal mode:
-- use official audio at `playbackRate = 1.0`
-
-Slow mode:
-- use the same official audio file at a conservative rate around `0.80`
-- do not request a separately synthesized slow file unless the official provider later exposes a documented native speed parameter and testing proves it sounds better
-
-### Fallback hierarchy
+### Source priority
 
 Playback order:
 
-1. Pre-existing item-specific recorded audio URL, if present and explicitly marked as verified Thai audio.
-2. Official NECTEC / AI for Thai audio through the proxy.
-3. Browser Thai TTS fallback only if the official service is unavailable.
+1. Verified local human recording (`item.audio`) bundled in the repository.
+2. Device Thai TTS fallback using native Thai script only.
 
-The UI must make the source visible when fallback occurs:
+No web API or remote pronunciation service is called at playback time.
 
-- official: no warning needed; optional small label `NECTEC 泰语发音`
-- browser fallback: show a brief toast such as `官方发音暂时不可用，正在使用设备泰语语音`.
+### File layout
 
-Never label browser TTS as official audio.
-
-### Error handling
-
-Client-visible behavior:
-
-- proxy/network error -> try browser Thai TTS fallback
-- provider quota/rate limit -> try cached result first; otherwise fallback and show the source notice
-- malformed/no Thai text -> do not send provider request; report playback failure
-- unsupported audio response -> fallback
-- repeated taps -> cancel/pause previous playback before starting the new request/playback
-
-Proxy behavior:
-
-- reject missing/empty text
-- cap text length to a safe maximum suitable for current word/short-example use
-- allow CORS only from the production GitHub Pages origin and development origins used for testing
-- never echo API credentials in errors
-- apply rate limiting to prevent public abuse
-- cache successful provider responses
-
-### Secret handling
-
-The official provider credential is stored only in server-side secret storage.
-
-Never commit:
-
-- AI for Thai API key
-- provider bearer tokens
-- `.env` containing secrets
-- generated debug responses that include credentials
-
-The public GitHub repository may include `.env.example` with variable names but no values.
-
-### Production dependency / release gate
-
-Official pronunciation cannot be considered production-complete until all of these are true:
-
-1. A valid AI for Thai/NECTEC credential with sufficient Text-to-Speech entitlement is configured server-side.
-2. The proxy health check passes.
-3. A live request for representative Thai words and sentences returns playable audio.
-4. GitHub Pages calls the proxy without exposing the provider key.
-5. Browser fallback is verified but is not the normal path.
-
-The public site must not be merged with copy claiming `官方发音` if the proxy/provider credential is not actually operational.
-
----
-
-## UI copy changes
-
-Current primary button:
+Recommended repository layout:
 
 ```text
-🔊 听单词
+thai/
+  audio/
+    words/
+      restaurant-spicy.ogg
+      restaurant-chicken.ogg
+      coffee-coffee.ogg
+      ...
+    phrases/
+      ... optional exact phrase recordings ...
+    sources.json
 ```
 
-Recommended official-audio version:
+Use stable entry IDs for local filenames instead of Thai filenames to avoid URL/path portability problems.
+
+If the source audio format is not reliably playable across the target browsers, create a browser-compatible derivative while preserving the original source URL, creator, and license in the manifest. Do not discard the attribution metadata after conversion.
+
+### Audio source manifest
+
+Every downloaded recording must have a manifest record similar to:
+
+```json
+{
+  "entryId": "restaurant-chicken",
+  "thai": "ไก่",
+  "localPath": "audio/words/restaurant-chicken.ogg",
+  "source": "Wikimedia Commons",
+  "sourceUrl": "...",
+  "creator": "...",
+  "license": "CC BY-SA 4.0",
+  "licenseUrl": "..."
+}
+```
+
+Requirements:
+
+- `entryId` resolves to exactly one vocabulary entry.
+- `thai` must exactly match that entry's Thai text.
+- every local audio file must have one manifest row.
+- every manifest row must point to an existing local audio file.
+- license metadata must not be blank.
+- no unverified source is added manually without a corresponding source page.
+
+### User-facing attribution
+
+Add a small `音频来源` link on the Thai site. It opens a simple attribution page listing recording source, creator, and license for imported human recordings.
+
+Do not clutter every vocabulary card with full license text.
+
+Recommended card-level source indicator:
+
+```text
+🔊 听真人泰语
+真人录音
+```
+
+Fallback phrase/example indicator when applicable:
 
 ```text
 🔊 听泰语
+设备语音
 ```
 
-Optional quiet metadata below or beside the control:
+### Normal and slow playback
+
+Human recordings use the same local file for both modes:
+
+- normal: `playbackRate = 1.0`
+- slow: approximately `0.80`
+
+Do not create artificial separate slow recordings.
+
+For device-TTS fallback, keep native Thai `item.th` as the only text sent to `SpeechSynthesisUtterance`.
+
+### Download / ingestion workflow
+
+The implementation should provide a repeatable import workflow rather than scattered manual downloads.
+
+For each candidate recording:
+
+1. Search the exact Thai spelling on Wikimedia Commons / Lingua Libre.
+2. Open the individual file page.
+3. Verify exact spoken target and accepted license.
+4. Record source URL, creator, and license.
+5. Download the actual media file.
+6. Normalize filename to the vocabulary entry ID.
+7. Convert format only when required for browser compatibility.
+8. Update `sources.json`.
+9. Update the vocabulary entry `audio` field.
+10. Run audio-integrity tests.
+
+A script may automate downloading and manifest validation, but license acceptance must be based on explicit source metadata, not guessed from the domain alone.
+
+### Missing recording behavior
+
+A main vocabulary word with no valid human recording remains usable:
+
+- its audio button falls back to device Thai TTS;
+- it is not labeled `真人录音`;
+- it is recorded in a coverage report so future imports can replace the fallback.
+
+The site must never pretend that 360/360 human coverage exists unless the manifest proves it.
+
+### Coverage reporting
+
+Generate a simple summary during tests/build:
 
 ```text
-NECTEC 泰语发音
+Human word audio: 214 / 360
+Device-TTS word fallback: 146 / 360
 ```
 
-Do not put `英文音译` or romanization inside the audio control. Romanization remains visual study support only.
+The exact count is discovered during implementation; there is no pre-set minimum that permits fake or lower-quality matches.
+
+### Prohibited audio sources / behavior
+
+Do not:
+
+- bulk-scrape Forvo or other pronunciation databases whose terms prohibit systematic reuse;
+- download Google Translate / commercial TTS output and rehost it as if it were an open recording;
+- copy dictionary audio without an explicit redistribution license;
+- use romanization or Chinese approximation to generate pronunciation;
+- hide creator/license attribution where the source license requires it;
+- label device TTS as human audio.
+
+---
+
+## Data model
+
+The current vocabulary shape already supports an optional `audio` URL.
+
+Human pronunciation uses that field directly:
+
+```js
+{
+  id: 'restaurant-chicken',
+  zh: '鸡',
+  th: 'ไก่',
+  audio: './audio/words/restaurant-chicken.ogg'
+}
+```
+
+No audio file means the audio engine uses the existing Thai TTS fallback.
+
+A separate `sources.json` holds licensing/provenance metadata and is not mixed into every vocabulary object.
 
 ---
 
 ## Accessibility
 
-- Audio controls stay real `<button>` elements.
-- Series progress uses readable text, e.g. `第 2 个，共 4 个` for assistive technology.
-- The track receives an accessible label such as `肉类食材，同系列词，可左右滑动`.
-- Avoid hijacking vertical touch scrolling.
-- Respect `prefers-reduced-motion`: native snapping remains functional, but do not add decorative transition animations.
-- A user who never performs a horizontal gesture can still read the first complete card and use all controls.
+- Audio controls remain real `<button>` elements.
+- Series progress exposes readable text such as `第 2 个，共 4 个`.
+- Each horizontal track has an accessible label such as `肉类食材，同系列词，可左右滑动`.
+- Vertical scrolling must not be hijacked.
+- Respect `prefers-reduced-motion` and do not add decorative movement.
+- A learner who never swipes can still read and use the complete first card.
 
 ---
 
@@ -326,50 +354,51 @@ Do not put `英文音译` or romanization inside the audio control. Romanization
 
 ### Native swipe tests
 
-Automated DOM/browser QA must verify:
+Verify:
 
-- arrow navigation buttons no longer exist in series UI
-- every series track renders all currently visible member cards in correct order
-- each slide is full-width
-- initial card is completely visible
-- programmatic horizontal scroll updates progress correctly
-- search with one surviving member remains standalone
-- favorites with two members create a 2-slide track
-- favorite/audio/details controls inside slides remain clickable
-- expanded `<details>` state survives swiping away/back during the same render
-- meaningful series movement stops current audio
-- mobile layout has no body-level horizontal overflow
+- no previous/next series buttons exist;
+- every series track renders all currently visible member cards in correct order;
+- each slide is full-width;
+- the initial card is completely visible;
+- horizontal scrolling updates progress correctly;
+- search with one surviving member renders a standalone card;
+- favorites with multiple family members render a reduced swipe track;
+- favorite/audio/details controls inside slides remain clickable;
+- expanded `<details>` state survives swiping away/back;
+- meaningful movement stops active audio;
+- phone and desktop layouts have no body-level horizontal overflow.
 
-### Official-audio client tests
-
-Use a fake proxy to verify:
-
-- native Thai `item.th` is sent, never `roman` or `zhPron`
-- cached/returned audio is played before browser TTS
-- slow mode changes playback rate instead of changing request text
-- repeated playback cancels previous audio
-- official failure triggers browser Thai TTS and source notice
-- invalid text does not call the proxy
-
-### Proxy tests
+### Audio manifest tests
 
 Verify:
 
-- API key comes from server secret/env only
-- CORS rejects unrelated origins
-- repeated identical Thai text returns cached audio after first provider call
-- provider 429/quota errors are normalized safely
-- credentials never appear in response bodies/log fixtures
-- request text normalization preserves Thai characters correctly
+- every manifest `entryId` resolves exactly once;
+- manifest `thai` exactly equals the vocabulary entry's `th`;
+- every manifest local path exists;
+- every imported local audio file has manifest metadata;
+- every imported license is in the accepted allow-list;
+- attribution/creator fields are populated where required;
+- no duplicate local path is accidentally assigned to different Thai words unless explicitly justified as the same exact recording target.
+
+### Audio playback tests
+
+Verify:
+
+- local human audio is used before TTS;
+- the local file URL corresponds to the active card's entry ID;
+- slow mode changes `Audio.playbackRate` rather than pronunciation text;
+- failed/missing local audio falls back to native-script Thai TTS;
+- fallback TTS receives `item.th`, never `roman` or `zhPron`;
+- UI source label changes correctly between human recording and device voice.
 
 ### Content integrity regression
 
 Re-run all existing 18-scene / 360-entry / 115-series tests plus:
 
-- no malformed Unicode
-- no Thai/Chinese/romanization field misalignment
-- no duplicate series membership
-- all audio buttons resolve back to the correct Thai string
+- no malformed Unicode;
+- no Thai/Chinese/romanization field misalignment;
+- no duplicate series membership;
+- all audio buttons resolve to the correct Thai target.
 
 ---
 
@@ -380,30 +409,31 @@ The redesign is complete when:
 1. Series navigation has no visible previous/next arrow buttons.
 2. The active word card is already fully visible before any swipe.
 3. The learner directly drags the full word-card track left/right.
-4. Neighboring full cards visibly follow the gesture and snap natively.
+4. Neighboring complete cards follow the gesture and snap natively.
 5. Progress updates from actual scroll position.
-6. Existing card controls remain usable inside the horizontal track.
-7. Primary pronunciation uses native Thai text through NECTEC / AI for Thai official TTS.
-8. No romanization or Chinese approximation is ever used as TTS input.
-9. The provider API key is absent from all public GitHub Pages assets.
-10. Official audio responses are cached to reduce provider calls.
-11. Slow mode reuses official audio with local playback-rate adjustment.
-12. Browser TTS is only a clearly identified fallback.
-13. Existing 18 scenes, 360 entries, taxonomy, search, favorites, Thai visibility, collocations, and examples still pass regression QA.
-14. Production is not labeled as official pronunciation until the server-side provider credential and live proxy are verified.
+6. Existing controls remain usable inside the horizontal track.
+7. The project contains locally hosted Thai native-speaker recordings for every main word for which a valid open-license exact recording was found.
+8. Every imported recording has source, creator, and license provenance in `sources.json`.
+9. No API key or pronunciation API is required at runtime.
+10. Human recordings play before any device TTS fallback.
+11. Romanization and Chinese approximation are never used as speech input.
+12. Missing human recordings are clearly treated as device-voice fallback rather than mislabeled as human.
+13. Normal/slow modes work for local audio.
+14. Existing 18 scenes, 360 entries, taxonomy, search, favorites, Thai visibility, collocations, and examples still pass regression QA.
+15. GitHub Pages can serve all bundled audio files without external runtime dependencies.
 
 ---
 
 ## Explicitly out of scope
 
-- Recording a new human Thai voice corpus
-- Scraping copyrighted pronunciation audio from dictionaries or third-party sites
-- Exposing AI for Thai credentials in GitHub Pages
-- Infinite-loop carousels
-- autoplaying series cards
-- autoplaying pronunciation on swipe
+- NECTEC / AI for Thai API integration
+- API keys or serverless pronunciation proxies
+- recording a new private human Thai corpus
+- scraping restricted pronunciation databases
+- guaranteeing 360/360 human recording coverage by using weak or incorrect matches
+- infinite-loop carousels
+- autoplay pronunciation on swipe
 - sending romanization to any speech engine
-- replacing the existing Chinese/romanization study aids
 
 ---
 
@@ -411,7 +441,10 @@ The redesign is complete when:
 
 - Visible series arrow buttons should be removed.
 - The full word card must be readable before the learner swipes.
-- Horizontal interaction should happen directly on the word-card area.
-- Official Thai pronunciation is preferred over browser-dependent pronunciation.
-- NECTEC / AI for Thai official Thai TTS is acceptable as the primary source.
-- English romanization/phonetic text must not be used to generate the Thai audio.
+- Horizontal interaction happens directly on the word-card area.
+- Downloaded human Thai pronunciation is preferred over browser TTS.
+- Government-official audio is not required.
+- Exact standard/native pronunciation is sufficient.
+- No API key should be required.
+- Openly licensed recordings may be downloaded and bundled into the GitHub Pages site.
+- Device Thai TTS may remain only as fallback when no suitable human recording is available.
