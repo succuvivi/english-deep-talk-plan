@@ -140,3 +140,31 @@ button:disabled { opacity: .55; cursor: progress; }
   align-content: center;
   gap: 2px;
 }
+
+.audio-sources-link {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  text-decoration: none;
+  font-weight: 700;
+}
+.audio-sources-page {
+  width: min(100% - 32px, 928px);
+  margin: 0 auto 48px;
+}
+.audio-coverage { color: var(--muted); font-weight: 750; }
+.audio-sources-list { display: grid; gap: 10px; }
+.audio-source-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px;
+  display: grid;
+  gap: 5px;
+  font-size: .9rem;
+}
+.audio-source-thai { font-size: 1.3rem; font-weight: 850; }
