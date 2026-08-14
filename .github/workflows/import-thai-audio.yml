@@ -7,6 +7,7 @@ on:
     paths:
       - .github/workflows/import-thai-audio.yml
       - tools/import_thai_audio.mjs
+      - tools/run_thai_audio_import.mjs
   workflow_dispatch:
 
 permissions:
@@ -29,8 +30,9 @@ jobs:
 
       - name: Download exact open-license Thai recordings
         env:
-          WIKIMEDIA_DOWNLOAD_DELAY_MS: '1200'
-        run: node tools/import_thai_audio.mjs --download
+          COMMONS_REQUEST_GAP_MS: '1000'
+          WIKIMEDIA_DOWNLOAD_DELAY_MS: '0'
+        run: node tools/run_thai_audio_import.mjs
 
       - name: Run Thai site tests
         working-directory: thai
