@@ -7,6 +7,7 @@ on:
     paths:
       - .github/workflows/import-thai-audio.yml
       - tools/import_thai_audio.mjs
+      - tools/materialize_thai_audio_archive.mjs
   workflow_dispatch:
 
 permissions:
@@ -27,8 +28,19 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Download exact open-license Thai recordings
-        run: node tools/import_thai_audio.mjs --download
+      - name: Download Lingua Libre Thai language archive
+        run: |
+          curl -fL --retry 5 --retry-all-errors --retry-delay 2 \
+            https://lingualibre.org/datasets/Q136-tha-Thai.zip \
+            -o /tmp/lingua-thai.zip
+          mkdir -p /tmp/lingua-thai
+          unzip -q /tmp/lingua-thai.zip -d /tmp/lingua-thai
+          echo "Archive files: $(find /tmp/lingua-thai -type f | wc -l)"
+
+      - name: Select exact open-license Thai recordings
+        env:
+          LINGUA_LIBRE_DATASET_DIR: /tmp/lingua-thai
+        run: node tools/materialize_thai_audio_archive.mjs
 
       - name: Run Thai site tests
         working-directory: thai
@@ -43,5 +55,6 @@ jobs:
             echo "No generated audio changes"
           else
             git commit -m "chore: import open-license Thai human audio"
+            git pull --rebase origin feat/thai-native-swipe-official-audio
             git push origin HEAD:feat/thai-native-swipe-official-audio
           fi
