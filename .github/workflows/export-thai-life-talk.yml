@@ -1,0 +1,36 @@
+name: Export Thai Life Talk Bundle
+
+on:
+  push:
+    branches:
+      - feat/thai-native-swipe-official-audio
+    paths:
+      - .github/workflows/export-thai-life-talk.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v6
+        with:
+          ref: feat/thai-native-swipe-official-audio
+
+      - name: Build standalone migration bundle
+        run: |
+          mkdir -p bundle/tools
+          cp -a thai/. bundle/
+          cp tools/import_thai_audio.mjs bundle/tools/
+          cp tools/import_thai_audio_generator.mjs bundle/tools/
+          cp tools/run_thai_audio_import.mjs bundle/tools/
+
+      - name: Upload migration bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: thai-life-talk-bundle
+          path: bundle
+          retention-days: 1
