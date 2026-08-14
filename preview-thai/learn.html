@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f7f6f2">
+  <title>泰语生活词库</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="learn-header">
+    <a href="./" class="back-link">← 场景</a>
+    <div class="learn-title">
+      <p class="eyebrow">词汇 → 搭配 → 例句</p>
+      <h1 id="page-title">泰语生活词库</h1>
+    </div>
+    <div class="top-actions">
+      <button type="button" data-action="toggle-thai">泰文：显示</button>
+      <button type="button" data-action="toggle-speed">语速：正常</button>
+      <a class="audio-sources-link" href="audio-sources.html">🎙 音频来源</a>
+    </div>
+  </header>
+
+  <form id="scene-search" class="search-bar">
+    <label class="sr-only" for="scene-q">在当前内容里搜中文</label>
+    <input id="scene-q" type="search" placeholder="在当前内容里搜中文…" autocomplete="off">
+    <button type="submit">搜索</button>
+  </form>
+
+  <main id="results" class="vocab-list"></main>
+  <div id="empty-state" class="empty-state" hidden>没有找到。换个中文关键词试试。</div>
+  <div id="toast" role="status" aria-live="polite" class="toast" hidden></div>
+
+  <script type="module" src="js/learn.js"></script>
+</body>
+</html>

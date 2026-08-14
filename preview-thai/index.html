@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f7f6f2">
+  <title>泰语生活词库</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">在泰国，直接开口</p>
+      <h1>泰语生活词库</h1>
+      <p class="lede">按真实生活场景学高频词、搭配和例句。不会认泰文也能用。中文近似音只做辅助，发音以点读为准。</p>
+    </div>
+    <nav class="top-actions" aria-label="学习设置">
+      <button type="button" data-action="toggle-thai">泰文：显示</button>
+      <button type="button" data-action="toggle-speed">语速：正常</button>
+      <a class="audio-sources-link" href="audio-sources.html">🎙 音频来源</a>
+    </nav>
+  </header>
+
+  <form id="global-search" class="search-bar" action="learn.html" method="get">
+    <label class="sr-only" for="q">搜索中文词汇或场景</label>
+    <input id="q" name="q" type="search" placeholder="搜：辣、空调、快递、多少钱…" autocomplete="off">
+    <button type="submit">搜索</button>
+  </form>
+
+  <a class="favorites-link" href="learn.html?favorites=1">⭐ 我的收藏</a>
+  <section id="scene-grid" class="scene-grid" aria-label="生活场景"></section>
+
+  <script type="module" src="js/home.js"></script>
+</body>
+</html>
