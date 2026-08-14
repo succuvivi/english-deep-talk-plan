@@ -16,8 +16,9 @@ import { bankEntries } from './bank.js';
 import { mobileEntries } from './mobile.js';
 import { greetingsEntries } from './greetings.js';
 import { friendsEntries } from './friends.js';
+import { applySeriesMetadata } from './series.js';
 
-export const ENTRIES = [
+const BASE_ENTRIES = [
   ...restaurantEntries,
   ...coffeeEntries,
   ...convenienceEntries,
@@ -37,3 +38,5 @@ export const ENTRIES = [
   ...greetingsEntries,
   ...friendsEntries,
 ];
+
+export const ENTRIES = applySeriesMetadata(BASE_ENTRIES);
