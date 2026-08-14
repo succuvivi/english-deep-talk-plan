@@ -73,3 +73,34 @@ export function finishSwipeGesture(start, pointerId, x, y, threshold = 50) {
   const direction = getSwipeDirection(x - start.x, y - start.y, threshold);
   return direction ? { id: start.id, direction } : null;
 }
+
+export function getSeriesTrackIndex(scrollLeft, slideWidth, count) {
+  if (!Number.isFinite(slideWidth) || slideWidth <= 0 || !Number.isFinite(count) || count <= 0) return 0;
+  const raw = Math.round(Math.max(0, Number.isFinite(scrollLeft) ? scrollLeft : 0) / slideWidth);
+  return Math.max(0, Math.min(raw, count - 1));
+}
+
+export function getSeriesTrackProgress(scrollLeft, slideWidth, count) {
+  const total = Number.isFinite(count) && count > 0 ? Math.floor(count) : 0;
+  const index = getSeriesTrackIndex(scrollLeft, slideWidth, total);
+  return { index, current: total ? index + 1 : 0, total };
+}
+
+export function renderSeriesTrack(group, renderEntry, escape = value => String(value)) {
+  const entries = group?.entries || [];
+  const total = entries.length;
+  return `
+    <section class="series-shell" data-series-id="${escape(group.id)}">
+      <div class="series-heading">
+        <div>
+          <strong class="series-label">${escape(group.label || '同系列')}</strong>
+          <span class="series-hint">左右滑动整张词卡</span>
+        </div>
+        <span class="series-progress" aria-label="第 ${total ? 1 : 0} 个，共 ${total} 个">${total ? 1 : 0} / ${total}</span>
+      </div>
+      <div class="series-track" data-series-track="${escape(group.id)}" aria-label="${escape(group.label || '同系列')}，同系列词，可左右滑动">
+        ${entries.map(entry => `<div class="series-slide">${renderEntry(entry)}</div>`).join('')}
+      </div>
+    </section>
+  `;
+}
