@@ -21,6 +21,12 @@ export function extractLinguaLibreTarget(title) {
   return /[\u0E00-\u0E7F]/u.test(target) ? target : null;
 }
 
+export function linguaLibreArchiveBasename(title) {
+  const value = String(title || '');
+  if (!/^File:LL-Q\d+ \(tha\)-/u.test(value)) return null;
+  return value.replace(/^File:/, '');
+}
+
 export function extractDirectThaiFilename(title) {
   const value = String(title || '');
   const match = value.match(/^File:(?:Th|th)-(.+)\.(?:ogg|oga|opus|mp3|wav|webm|flac)$/iu);
@@ -36,6 +42,43 @@ export function parseWiktionaryAudioMap(source) {
     output.set(match[1], match[2].startsWith('File:') ? match[2] : `File:${match[2]}`);
   }
   return output;
+}
+
+export function findExactThaiTargets(text, wantedThai) {
+  const source = String(text || '').normalize('NFC');
+  const targets = [...(wantedThai || [])].map(value => String(value).normalize('NFC')).sort((a, b) => b.length - a.length);
+  const found = [];
+  const isThai = char => Boolean(char && /[\u0E00-\u0E7F]/u.test(char));
+  for (const target of targets) {
+    let start = 0;
+    while (start <= source.length - target.length) {
+      const index = source.indexOf(target, start);
+      if (index < 0) break;
+      const before = index > 0 ? source[index - 1] : '';
+      const afterIndex = index + target.length;
+      const after = afterIndex < source.length ? source[afterIndex] : '';
+      if (!isThai(before) && !isThai(after)) {
+        found.push(target);
+        break;
+      }
+      start = index + 1;
+    }
+  }
+  return [...new Set(found)];
+}
+
+export function descriptionTargetRefs(page, wantedThai) {
+  const info = page?.imageinfo?.[0];
+  const meta = info?.extmetadata || {};
+  const description = [
+    stripHtml(extValue(meta, 'ImageDescription')),
+    stripHtml(extValue(meta, 'ObjectName'))
+  ].filter(Boolean).join(' ');
+  return findExactThaiTargets(description, wantedThai).map(target => ({
+    title: page.title,
+    target,
+    source: 'Wikimedia Commons / exact Thai description'
+  }));
 }
 
 export function isSupportedAudioFile(title, mime) {
@@ -67,8 +110,9 @@ function licenseRank(license) {
 
 function sourceRank(source) {
   if (String(source).includes('Lingua Libre')) return 0;
-  if (String(source).includes('direct Thai filename')) return 1;
-  if (String(source).includes('Wiktionary')) return 2;
+  if (String(source).includes('exact Thai description')) return 1;
+  if (String(source).includes('direct Thai filename')) return 2;
+  if (String(source).includes('Wiktionary')) return 3;
   return 9;
 }
 
@@ -191,7 +235,7 @@ function buildCandidateRefs({ linguaLibreTitles, pronunciationTitles, wiktionary
   return [...unique.values()];
 }
 
-async function fetchCandidateMetadata(refs) {
+async function fetchCandidateMetadata(refs, { discoveryTitles = [], wantedThai = new Set() } = {}) {
   const candidates = [];
   const byTitle = new Map();
   for (const ref of refs) {
@@ -199,7 +243,7 @@ async function fetchCandidateMetadata(refs) {
     if (!byTitle.has(key)) byTitle.set(key, []);
     byTitle.get(key).push(ref);
   }
-  const titles = [...byTitle.keys()];
+  const titles = [...new Set([...byTitle.keys(), ...discoveryTitles.map(normalizeTitle)])];
   for (let i = 0; i < titles.length; i += 40) {
     const batch = titles.slice(i, i + 40);
     const url = new URL(COMMONS_API);
@@ -211,14 +255,37 @@ async function fetchCandidateMetadata(refs) {
     url.searchParams.set('titles', batch.join('|'));
     const data = await fetchJson(url);
     for (const page of data?.query?.pages || []) {
-      const refsForPage = byTitle.get(normalizeTitle(page.title)) || [];
+      const refsForPage = [
+        ...(byTitle.get(normalizeTitle(page.title)) || []),
+        ...descriptionTargetRefs(page, wantedThai)
+      ];
+      const seen = new Set();
       for (const ref of refsForPage) {
+        const key = `${ref.target}\u0000${ref.source}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
         const candidate = normalizeCandidate(page, ref);
         if (candidate) candidates.push(candidate);
       }
     }
   }
   return candidates;
+}
+
+async function buildDatasetFileIndex(root) {
+  const index = new Map();
+  if (!root) return index;
+  async function walk(dir) {
+    let entries;
+    try { entries = await fs.readdir(dir, { withFileTypes: true }); } catch { return; }
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) await walk(full);
+      else if (entry.isFile()) index.set(entry.name.normalize('NFC'), full);
+    }
+  }
+  await walk(root);
+  return index;
 }
 
 function safeExtension(url, mime) {
@@ -245,10 +312,17 @@ export function canonicalizeMediaUrl(value) {
   return url.toString();
 }
 
+export function interDownloadDelayMs(processedRemoteDownloads, configuredDelayMs = 1200) {
+  const delay = Number(configuredDelayMs);
+  if (!Number.isFinite(delay) || delay <= 0 || processedRemoteDownloads <= 0) return 0;
+  return delay;
+}
+
 export async function fetchWithRateLimitRetry(url, {
   fetchImpl = fetch,
   sleepFn = ms => new Promise(resolve => setTimeout(resolve, ms)),
   retryDelays = [2000, 5000, 10000, 20000],
+  maxRetryAfterMs = 15000,
   headers = {}
 } = {}) {
   const target = canonicalizeMediaUrl(url);
@@ -258,9 +332,13 @@ export async function fetchWithRateLimitRetry(url, {
     if (response.status !== 429) return response;
     if (attempt === retryDelays.length) return response;
     const retryAfterSeconds = Number(response.headers?.get?.('retry-after'));
-    const waitMs = Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
-      ? Math.max(retryDelays[attempt], retryAfterSeconds * 1000)
+    const requestedRetryMs = Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
+      ? retryAfterSeconds * 1000
       : retryDelays[attempt];
+    const cappedRetryMs = Number.isFinite(maxRetryAfterMs) && maxRetryAfterMs > 0
+      ? Math.min(requestedRetryMs, maxRetryAfterMs)
+      : requestedRetryMs;
+    const waitMs = Math.max(retryDelays[attempt], cappedRetryMs);
     await sleepFn(waitMs);
   }
   return response;
@@ -303,7 +381,10 @@ export async function runImport({ repoRoot = process.cwd(), download = false } =
     fetchWiktionaryAudioMap()
   ]);
   const refs = buildCandidateRefs({ linguaLibreTitles, pronunciationTitles, wiktionaryMap, wantedThai });
-  const candidates = await fetchCandidateMetadata(refs);
+  const candidates = await fetchCandidateMetadata(refs, {
+    discoveryTitles: [...linguaLibreTitles, ...pronunciationTitles],
+    wantedThai
+  });
 
   const groupedCandidates = new Map();
   for (const candidate of candidates) {
@@ -333,35 +414,65 @@ export async function runImport({ repoRoot = process.cwd(), download = false } =
   await fs.mkdir(path.join(repoRoot, AUDIO_DIR), { recursive: true });
 
   const manifest = [];
+  const successfulByThai = new Map();
+  const datasetIndex = await buildDatasetFileIndex(process.env.LINGUA_LIBRE_DATASET_DIR || '');
+  let archiveHits = 0;
+  let remoteHits = 0;
+  let remoteDownloadAttempts = 0;
+  let skippedDownloads = 0;
   for (const [thai, candidate] of [...selectedByThai.entries()].sort(([a], [b]) => a.localeCompare(b, 'th'))) {
     const destination = path.join(repoRoot, 'thai', candidate.localPath.replace(/^\.\//, ''));
-    const bytes = await downloadFile(candidate.url, destination);
-    for (const entry of byThai.get(thai)) {
-      manifest.push({
-        entryId: entry.id,
-        thai,
-        localPath: candidate.localPath,
-        source: candidate.source,
-        sourceUrl: candidate.descriptionUrl,
-        creator: candidate.creator,
-        license: candidate.license,
-        licenseUrl: candidate.licenseUrl,
-        sourceFileTitle: candidate.title,
-        bytes
-      });
+    try {
+      const archiveName = linguaLibreArchiveBasename(candidate.title);
+      const archiveSource = archiveName ? datasetIndex.get(archiveName.normalize('NFC')) : null;
+      let bytes;
+      if (archiveSource) {
+        await fs.mkdir(path.dirname(destination), { recursive: true });
+        await fs.copyFile(archiveSource, destination);
+        bytes = (await fs.stat(destination)).size;
+        archiveHits += 1;
+      } else {
+        const delayMs = interDownloadDelayMs(
+          remoteDownloadAttempts,
+          Number(process.env.WIKIMEDIA_DOWNLOAD_DELAY_MS || 1200)
+        );
+        if (delayMs) await new Promise(resolve => setTimeout(resolve, delayMs));
+        remoteDownloadAttempts += 1;
+        bytes = await downloadFile(candidate.url, destination);
+        remoteHits += 1;
+      }
+      successfulByThai.set(thai, candidate);
+      for (const entry of byThai.get(thai)) {
+        manifest.push({
+          entryId: entry.id,
+          thai,
+          localPath: candidate.localPath,
+          source: candidate.source,
+          sourceUrl: candidate.descriptionUrl,
+          creator: candidate.creator,
+          license: candidate.license,
+          licenseUrl: candidate.licenseUrl,
+          sourceFileTitle: candidate.title,
+          bytes
+        });
+      }
+    } catch (error) {
+      skippedDownloads += 1;
+      console.warn(`Skipping ${thai} (${candidate.title}): ${error.message}`);
     }
   }
 
   manifest.sort((a, b) => a.entryId.localeCompare(b.entryId));
-  const assignments = buildAudioAssignments(entries, selectedByThai);
+  const assignments = buildAudioAssignments(entries, successfulByThai);
   await fs.writeFile(path.join(repoRoot, MANIFEST_PATH), `${JSON.stringify(manifest, null, 2)}\n`);
   await fs.writeFile(path.join(repoRoot, AUDIO_MAP_PATH), audioMapModule(assignments));
 
   const human = Object.keys(assignments).length;
   console.log(`Human word audio: ${human} / ${entries.length}`);
-  console.log(`Unique human recordings: ${selectedByThai.size} / ${wantedThai.size}`);
+  console.log(`Unique human recordings: ${successfulByThai.size} / ${wantedThai.size}`);
+  console.log(`Archive downloads: ${archiveHits}; direct media downloads: ${remoteHits}; skipped: ${skippedDownloads}`);
   console.log(`Device-TTS word fallback: ${entries.length - human} / ${entries.length}`);
-  return { entries, selectedByThai, manifest, assignments, candidates, refs };
+  return { entries, selectedByThai: successfulByThai, manifest, assignments, candidates, refs };
 }
 
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
