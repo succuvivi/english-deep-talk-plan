@@ -1,0 +1,47 @@
+name: Import Thai Human Audio
+
+on:
+  push:
+    branches:
+      - feat/thai-native-swipe-official-audio
+    paths:
+      - .github/workflows/import-thai-audio.yml
+      - tools/import_thai_audio.mjs
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/thai-native-swipe-official-audio
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Download exact open-license Thai recordings
+        run: node tools/import_thai_audio.mjs --download
+
+      - name: Run Thai site tests
+        working-directory: thai
+        run: npm test
+
+      - name: Commit generated audio assets
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add thai/audio/words thai/audio/sources.json thai/data/audio-map.js
+          if git diff --cached --quiet; then
+            echo "No generated audio changes"
+          else
+            git commit -m "chore: import open-license Thai human audio"
+            git push origin HEAD:feat/thai-native-swipe-official-audio
+          fi
