@@ -3,6 +3,7 @@ import { SCENES } from '../data/scenes.js';
 import { parseLearnQuery, filterEntries, escapeHtml } from './core.js';
 import { learnerState } from './state.js';
 import { audioEngine } from './audio.js';
+import { groupEntriesForDisplay, clampSeriesIndex, getSeriesViewState, beginSwipeGesture, finishSwipeGesture } from './series.js';
 
 const results = document.querySelector('#results');
 const emptyState = document.querySelector('#empty-state');
@@ -14,6 +15,9 @@ const toast = document.querySelector('#toast');
 const initial = parseLearnQuery(window.location.search);
 let queryState = { ...initial };
 let toastTimer = null;
+const seriesIndexes = new Map();
+let displayItems = [];
+let swipeStart = null;
 
 function getScene(id) {
   return SCENES.find(scene => scene.id === id) || null;
@@ -75,6 +79,41 @@ function entryHtml(entry) {
   `;
 }
 
+function activeSeriesIndex(group) {
+  return clampSeriesIndex(seriesIndexes.get(group.id) ?? 0, group.entries.length);
+}
+
+function seriesHtml(group) {
+  const state = getSeriesViewState(group, activeSeriesIndex(group));
+  seriesIndexes.set(group.id, state.index);
+
+  const previousLabel = state.previous ? `上一个：${state.previous.zh}` : '已经是第一个';
+  const nextLabel = state.next ? `下一个：${state.next.zh}` : '已经是最后一个';
+
+  return `
+    <section class="series-shell" data-series-id="${escapeHtml(group.id)}">
+      <div class="series-toolbar">
+        <div>
+          <strong class="series-label">${escapeHtml(group.label)}</strong>
+          <span class="series-hint">左右滑动整张词卡</span>
+        </div>
+        <div class="series-controls" aria-label="同系列词切换">
+          <button type="button" class="series-nav" data-series-nav="prev" ${state.atStart ? 'disabled' : ''} aria-label="${escapeHtml(previousLabel)}">‹</button>
+          <span class="series-progress" aria-label="第 ${state.current} 个，共 ${state.total} 个">${state.current} / ${state.total}</span>
+          <button type="button" class="series-nav" data-series-nav="next" ${state.atEnd ? 'disabled' : ''} aria-label="${escapeHtml(nextLabel)}">›</button>
+        </div>
+      </div>
+      <div class="series-swipe-surface" data-series-swipe="${escapeHtml(group.id)}">
+        ${entryHtml(state.active)}
+      </div>
+    </section>
+  `;
+}
+
+function displayItemHtml(item) {
+  return item.kind === 'series' ? seriesHtml(item) : entryHtml(item.entry);
+}
+
 function filteredEntries() {
   return filterEntries(ENTRIES, {
     scene: queryState.scene,
@@ -88,7 +127,14 @@ function render() {
   setTitle();
   searchInput.value = queryState.q;
   const entries = filteredEntries();
-  results.innerHTML = entries.map(entryHtml).join('');
+  displayItems = groupEntriesForDisplay(entries);
+
+  const validSeries = new Set(displayItems.filter(item => item.kind === 'series').map(item => item.id));
+  for (const id of seriesIndexes.keys()) {
+    if (!validSeries.has(id)) seriesIndexes.delete(id);
+  }
+
+  results.innerHTML = displayItems.map(displayItemHtml).join('');
   emptyState.hidden = entries.length > 0;
 }
 
@@ -118,7 +164,49 @@ function playableItem(entry, kind, index) {
   return null;
 }
 
+function currentSeriesGroup(id) {
+  return displayItems.find(item => item.kind === 'series' && item.id === id) || null;
+}
+
+function replaceSeriesShell(group, focusDirection = null) {
+  const oldShell = [...results.querySelectorAll('[data-series-id]')]
+    .find(element => element.dataset.seriesId === group.id);
+  if (!oldShell) return;
+
+  const template = document.createElement('template');
+  template.innerHTML = seriesHtml(group).trim();
+  const freshShell = template.content.firstElementChild;
+  oldShell.replaceWith(freshShell);
+
+  if (focusDirection) {
+    const sameButton = freshShell.querySelector(`[data-series-nav="${focusDirection}"]:not(:disabled)`);
+    const fallbackDirection = focusDirection === 'next' ? 'prev' : 'next';
+    (sameButton || freshShell.querySelector(`[data-series-nav="${fallbackDirection}"]:not(:disabled)`))?.focus();
+  }
+}
+
+function moveSeries(id, direction, focusDirection = null) {
+  const group = currentSeriesGroup(id);
+  if (!group) return;
+
+  const current = activeSeriesIndex(group);
+  const delta = direction === 'next' ? 1 : -1;
+  const next = clampSeriesIndex(current + delta, group.entries.length);
+  if (next === current) return;
+
+  audioEngine.stop();
+  seriesIndexes.set(id, next);
+  replaceSeriesShell(group, focusDirection);
+}
+
 results.addEventListener('click', async event => {
+  const navButton = event.target.closest('[data-series-nav]');
+  if (navButton) {
+    const shell = navButton.closest('[data-series-id]');
+    if (shell) moveSeries(shell.dataset.seriesId, navButton.dataset.seriesNav, navButton.dataset.seriesNav);
+    return;
+  }
+
   const favoriteButton = event.target.closest('[data-favorite]');
   if (favoriteButton) {
     learnerState.toggleFavorite(favoriteButton.dataset.favorite);
@@ -147,9 +235,39 @@ results.addEventListener('click', async event => {
   }
 });
 
+results.addEventListener('pointerdown', event => {
+  const surface = event.target.closest('[data-series-swipe]');
+  if (!surface) return;
+  if (event.target.closest('button, a, input, summary')) return;
+
+  swipeStart = beginSwipeGesture(
+    surface.dataset.seriesSwipe,
+    event.pointerId,
+    event.clientX,
+    event.clientY
+  );
+});
+
+results.addEventListener('pointerup', event => {
+  const result = finishSwipeGesture(
+    swipeStart,
+    event.pointerId,
+    event.clientX,
+    event.clientY,
+    50
+  );
+  swipeStart = null;
+  if (result) moveSeries(result.id, result.direction);
+});
+
+results.addEventListener('pointercancel', event => {
+  if (swipeStart?.pointerId === event.pointerId) swipeStart = null;
+});
+
 searchForm.addEventListener('submit', event => {
   event.preventDefault();
   queryState.q = searchInput.value.trim();
+  seriesIndexes.clear();
   render();
 });
 
