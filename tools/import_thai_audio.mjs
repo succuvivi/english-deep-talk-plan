@@ -237,11 +237,44 @@ function chooseCanonicalEntry(entriesForThai) {
   return [...entriesForThai].sort((a, b) => a.id.localeCompare(b.id))[0];
 }
 
+export function canonicalizeMediaUrl(value) {
+  const url = new URL(value);
+  for (const key of [...url.searchParams.keys()]) {
+    if (key.toLowerCase().startsWith('utm_')) url.searchParams.delete(key);
+  }
+  return url.toString();
+}
+
+export async function fetchWithRateLimitRetry(url, {
+  fetchImpl = fetch,
+  sleepFn = ms => new Promise(resolve => setTimeout(resolve, ms)),
+  retryDelays = [2000, 5000, 10000, 20000],
+  headers = {}
+} = {}) {
+  const target = canonicalizeMediaUrl(url);
+  let response;
+  for (let attempt = 0; attempt <= retryDelays.length; attempt += 1) {
+    response = await fetchImpl(target, { headers });
+    if (response.status !== 429) return response;
+    if (attempt === retryDelays.length) return response;
+    const retryAfterSeconds = Number(response.headers?.get?.('retry-after'));
+    const waitMs = Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
+      ? Math.max(retryDelays[attempt], retryAfterSeconds * 1000)
+      : retryDelays[attempt];
+    await sleepFn(waitMs);
+  }
+  return response;
+}
+
 async function downloadFile(url, destination) {
-  const response = await fetch(url, {
-    headers: { 'User-Agent': 'ThaiLifeSpeakAudioImporter/1.0 (GitHub: succuvivi/english-deep-talk-plan)' }
+  const response = await fetchWithRateLimitRetry(url, {
+    headers: {
+      'User-Agent': 'ThaiLifeSpeakAudioImporter/1.0 (GitHub: succuvivi/english-deep-talk-plan)',
+      'Accept': 'audio/*,*/*;q=0.8',
+      'Referer': 'https://commons.wikimedia.org/'
+    }
   });
-  if (!response.ok) throw new Error(`Audio HTTP ${response.status}: ${url}`);
+  if (!response.ok) throw new Error(`Audio HTTP ${response.status}: ${canonicalizeMediaUrl(url)}`);
   const bytes = new Uint8Array(await response.arrayBuffer());
   if (!bytes.length) throw new Error(`Empty audio file: ${url}`);
   await fs.mkdir(path.dirname(destination), { recursive: true });
