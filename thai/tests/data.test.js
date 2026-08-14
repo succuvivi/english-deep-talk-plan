@@ -79,3 +79,44 @@ test('enriched entries expose consistent ordered series metadata', () => {
     assert.equal(new Set(members.map(entry => entry.seriesOrder)).size, members.length);
   }
 });
+
+const EXPECTED_SERIES = new Map([
+  ['restaurant-protein', ['肉', '鸡', '猪', '鱼']],
+  ['coffee-ingredients', ['咖啡', '茶', '奶', '糖']],
+  ['restaurant-staples', ['米饭', '面']],
+  ['coffee-sweetness', ['甜', '不甜', '少甜']],
+  ['convenience-payment', ['多少钱', '现金', '扫码', '卡', '收据']],
+  ['market-price', ['贵', '便宜', '多少钱', '再便宜一点']],
+  ['taxi-route', ['左转', '右转', '直走', '掉头']],
+  ['motorbike-check', ['油', '轮胎', '胎压', '刹车']],
+  ['directions-position', ['左边', '右边', '前面', '后面', '楼上', '楼下']],
+  ['petrol-fuel', ['汽油', '柴油', '91', '95', 'E20']],
+  ['delivery-dropoff', ['在楼下', '在大厅', '放门口', '放前台']],
+  ['condo-lease', ['房租', '押金', '合同', '一个月', '一年', '续租', '搬走']],
+  ['repairs-appliances', ['冰箱', '洗衣机', '热水器']],
+  ['laundry-service', ['洗衣', '烘干', '熨衣服', '干洗']],
+  ['massage-body', ['头', '肩膀', '背', '腿', '脚']],
+  ['hospital-symptoms', ['生病', '发烧', '咳嗽', '喉咙痛', '头痛', '肚子痛', '拉肚子', '过敏', '受伤']],
+  ['bank-business', ['转账', '开户', '取钱', '存钱', '换钱']],
+  ['mobile-contact', ['电话', '号码', '打电话', '接电话', '发消息']],
+  ['greetings-apology', ['对不起 / 抱歉', '不好意思', '没关系', '没事']],
+  ['friends-activity', ['一起去', '去哪里', '吃饭', '喝一杯']]
+]);
+
+test('approved scene taxonomy includes the required semantic families', () => {
+  const byId = new Map(SERIES_DEFINITIONS.map(definition => [definition.id, definition]));
+  for (const [id, members] of EXPECTED_SERIES) {
+    assert.deepEqual(byId.get(id)?.members, members, `${id} taxonomy mismatch`);
+  }
+});
+
+test('every one of the 18 scenes has semantic series coverage', () => {
+  const covered = new Set(SERIES_DEFINITIONS.map(definition => definition.scene));
+  assert.deepEqual([...sceneIds].sort(), [...covered].sort());
+});
+
+test('series classification covers most vocabulary without forcing every word', () => {
+  const grouped = ENTRIES.filter(entry => entry.seriesId).length;
+  assert.ok(grouped >= 300, `expected >= 300 grouped entries, got ${grouped}`);
+  assert.ok(grouped < ENTRIES.length, 'some genuinely standalone vocabulary should remain');
+});
