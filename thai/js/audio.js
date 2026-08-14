@@ -34,6 +34,7 @@ export function createAudioEngine({ speechSynthesis, SpeechSynthesisUtterance, A
 
     if (item.audio && AudioCtor) {
       currentAudio = new AudioCtor(item.audio);
+      currentAudio.playbackRate = speed === 'slow' ? 0.8 : 1;
       try {
         await currentAudio.play();
         return { mode: 'audio' };
