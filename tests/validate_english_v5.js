@@ -1,0 +1,17 @@
+const fs=require('fs'),vm=require('vm'),path=require('path');
+const ROOT=path.resolve(__dirname,'..');
+const blocked=new Set('size bill spicy free busy full table menu because family parents straight turn noisy quiet finish send tired better order price cash kid simple important really'.split(' '));
+function load(name,ctx){const code=fs.readFileSync(path.join(ROOT,name),'utf8');vm.runInContext(code,ctx,{filename:name});}
+function fail(msg){throw new Error(msg)}
+const base=[{d:3,w:[['realize','意识到','realize that...']]}];for(let d=4;d<=33;d++)base.push({d,w:[['legacy'+d,'旧词','use legacy'+d]]});
+const ctx=vm.createContext({window:{P:base},console});ctx.globalThis=ctx.window;
+['course-v5-init.js','course-v5-a.js','course-v5-b.js','course-v5-c.js','course-v5-apply.js'].forEach(f=>load(f,ctx));
+if(!ctx.window.COURSE_V5)fail('COURSE_V5 missing');
+const days=ctx.window.P.filter(x=>x.d>=4&&x.d<=33);if(days.length!==30)fail('expected 30 upgraded days');
+const targets=[];for(const day of days){if(day.w.length!==10)fail(`Day ${day.d}: expected 10 targets`);for(const w of day.w){if(w.length<5)fail(`Day ${day.d}: malformed row ${JSON.stringify(w)}`);const [term,zh,coll,cloze,kind]=w;if(blocked.has(term.toLowerCase()))fail(`blocked elementary target: ${term}`);if(!term||!zh||!coll||!cloze||!kind)fail(`Day ${day.d}: blank metadata for ${term}`);if(!coll.toLowerCase().includes(term.toLowerCase()))fail(`collocation must contain exact target: ${term} -> ${coll}`);if(!cloze.includes('______'))fail(`cloze missing blank: ${term}`);targets.push(term.toLowerCase())}}
+if(new Set(targets).size!==300)fail(`expected 300 unique targets, got ${new Set(targets).size}`);const baseline=new Set('realize assume handle hesitate afford mention awkward reliable option perspective'.split(' '));for(const t of targets)if(baseline.has(t))fail(`duplicates Day 3 baseline: ${t}`);
+load('lexicon-v5.js',ctx);const LX=ctx.window.LX;if(!LX)fail('LX missing');
+const kindByTerm=new Map(days.flatMap(d=>d.w.map(w=>[w[0],w[4]])));const clozes=[];for(const day of days){const dayCues=[];for(const w of day.w){const term=w[0],x=LX[term];if(!x)fail(`LX missing ${term}`);if(!x.example||!x.exampleZh)fail(`example missing ${term}`);if(x.example===x.cloze)fail(`example repeats cloze: ${term}`);if(!Array.isArray(x.clozeOptions)||x.clozeOptions.length!==4||new Set(x.clozeOptions).size!==4)fail(`bad cloze options: ${term}`);if(x.clozeOptions.filter(v=>v===term).length!==1)fail(`answer count != 1: ${term}`);for(const o of x.clozeOptions){if(kindByTerm.has(o)&&kindByTerm.get(o)!==w[4])fail(`cloze option kind mismatch: ${term} -> ${o}`)}if(x.cloze.toLowerCase().includes(term.toLowerCase()))fail(`cloze leaks target text: ${term}`);if(!Array.isArray(x.collocationParts)||x.collocationParts.length!==2)fail(`bad collocationParts: ${term}`);const cue=String(x.collocationParts[1]).toLowerCase(),needle=term.toLowerCase();if(cue.includes(needle))fail(`match cue leaks target: ${term} -> ${x.collocationParts[1]}`);if(!x.cloze||!x.cloze.includes('______'))fail(`LX cloze bad: ${term}`);clozes.push(x.cloze);dayCues.push(cue)}if(new Set(dayCues).size!==dayCues.length)fail(`Day ${day.d}: duplicate match cues`)}
+if(new Set(clozes).size!==300)fail(`cloze prompts must be unique: ${new Set(clozes).size}/300`);
+if(!ctx.window.LEGACY_WORDS_V5||!ctx.window.LEGACY_WORDS_V5[5]?.some(w=>w[0]==='legacy5'))fail('legacy words not preserved');
+console.log('PASS: 30 days, 300 unique B1+/B2 targets, unique cloze prompts, safe match cues, complete choices, legacy preserved');
